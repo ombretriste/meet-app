@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>MeetCTRL</title>
+  <meta name="description" content="Videollamadas privadas y pantalla compartida, sin cuentas: crea una sala y envía el enlace." />
+  <meta name="theme-color" content="#060f12" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MeetCTRL" />
+  <meta name="color-scheme" content="dark light" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Aplica tema y fondo antes de pintar (evita un destello del tema equivocado)
+    try {
+      var d = JSON.parse(localStorage.getItem('meet:display') || '{}');
+      var light = d.theme === 'light' || (d.theme !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches);
+      document.documentElement.dataset.theme = light ? 'light' : 'dark';
+      document.documentElement.dataset.wall = d.wall || 'cian';
+    } catch (e) {}
+  </script>
+</head>
+<body class="booting">
+  <!-- Pantalla de inicio -->
+  <div id="splash" class="splash">
+    <div class="sp-main">
+      <span class="logo-slot" data-logo="132"></span>
+      <div class="wordmark">
+        <span class="wm-name">Meet<b>CTRL</b></span>
+        <span class="wm-by">by OmT Finance</span>
+      </div>
+    </div>
+    <p class="sp-version" id="app-version"></p>
+  </div>
+
+  <!-- App -->
+  <div id="app" class="app">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <span class="logo-slot" data-logo="30"></span>
+        <span class="brand">Meet<b>CTRL</b></span>
+      </div>
+      <button id="menu-btn" class="icon-btn" aria-label="Más opciones" title="Más opciones" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></g></svg>
+      </button>
+    </header>
+
+    <main id="view"></main>
+  </div>
+
+  <!-- Llamada en curso -->
+  <section id="call" class="call" hidden aria-label="Videollamada">
+    <header class="call-top">
+      <span class="call-pill" id="call-status" role="status"></span>
+    </header>
+    <div class="stage" id="stage"></div>
+    <div class="call-bar" id="call-bar" role="toolbar" aria-label="Controles de la llamada"></div>
+  </section>
+
+  <div id="menu" class="menu" role="menu" hidden></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <!-- Vercel Web Analytics: sin cookies; solo visitas y las funciones que se abren. Se quita de la
+       dirección todo lo que va tras ? o # (el enlace de la sala lleva su código) para que nunca se envíe. -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    window.va('beforeSend', function (e) { return Object.assign({}, e, { url: e.url.split(/[?#]/)[0] }); });
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
