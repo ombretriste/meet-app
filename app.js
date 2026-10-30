@@ -1,7 +1,7 @@
 'use strict';
 
 // Versión de la app (se ve en la pantalla de inicio). Arreglos y ajustes: 0.1.x; novedades: 0.x.0.
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.1.1';
 // Uso de la app en Vercel Analytics: es una sola página, así que cada función se cuenta como una
 // página virtual. Solo se envía el nombre de la función, nunca datos de la app.
 const track = (path) => { try { window.va?.('pageview', { path }); } catch (_) { /* sin analítica */ } };
@@ -507,6 +507,7 @@ function dropPeer(p) {
 }
 
 async function toggleShare() {
+  if (!canShare()) { toast('Este dispositivo no permite compartir la pantalla. Hazlo desde un ordenador; aquí sí puedes ver la de los demás.', { warn: true }); return; }
   if (local.screenTrack) { stopShare(); return; }
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 } }, audio: false });
@@ -634,7 +635,7 @@ function renderBar() {
     <button class="round ${micOn ? '' : 'off'}" data-a="mic" type="button" aria-label="${micOn ? 'Silenciar el micrófono' : 'Activar el micrófono'}" title="Micrófono">${icon(micOn ? 'mic' : 'micOff')}</button>
     <button class="round ${local.camTrack ? '' : 'off'}" data-a="cam" type="button" aria-label="${local.camTrack ? 'Apagar la cámara' : 'Encender la cámara'}" title="Cámara">${icon(local.camTrack ? 'video' : 'videoOff')}</button>
     ${isTouch && local.camTrack ? `<button class="round" data-a="flip" type="button" aria-label="Cambiar de cámara" title="Cambiar de cámara">${icon('flip')}</button>` : ''}
-    ${canShare() ? `<button class="round ${local.screenTrack ? 'on' : ''}" data-a="share" type="button" aria-label="${local.screenTrack ? 'Dejar de compartir la pantalla' : 'Compartir la pantalla'}" title="Compartir pantalla">${icon('screen')}</button>` : ''}
+    ${canShare() || isTouch ? `<button class="round ${local.screenTrack ? 'on' : canShare() ? '' : 'unavailable'}" data-a="share" type="button" aria-label="${local.screenTrack ? 'Dejar de compartir la pantalla' : 'Compartir la pantalla'}" title="Compartir pantalla">${icon('screen')}</button>` : ''}
     <button class="round" data-a="invite" type="button" aria-label="Invitar" title="Invitar">${icon('invite')}</button>
     <button class="round end" data-a="end" type="button" aria-label="Salir de la llamada" title="Salir">${icon('hangup')}</button>`;
   bar.querySelectorAll('[data-a]').forEach((b) => b.addEventListener('click', () => ACTIONS[b.dataset.a]()));
@@ -707,7 +708,7 @@ function openInfoSheet() {
       <h2 class="sheet-title">MeetCTRL</h2>
       <p class="small muted">Versión ${APP_VERSION} · by OmT Finance</p>
       <p class="small">Videollamadas de hasta ${MAX_PEERS} personas con pantalla compartida. Crea una sala y envía el enlace: no hacen falta cuentas.</p>
-      <p class="small muted">El vídeo, el audio y la pantalla van directos entre vosotros, cifrados. El servidor solo os pone en contacto y no guarda nada. Compartir la pantalla funciona desde un ordenador; en el iPhone se puede ver, pero no compartir.</p>
+      <p class="small muted">El vídeo, el audio y la pantalla van directos entre vosotros, cifrados. El servidor solo os pone en contacto y no guarda nada. Compartir la pantalla funciona desde un ordenador; en el iPhone y el iPad se puede ver, pero no compartir.</p>
       <div class="sheet-actions"><button type="button" class="done-btn" data-close>Cerrar</button></div>
     </div>`;
   back.querySelector('[data-close]').addEventListener('click', closeSheet);
