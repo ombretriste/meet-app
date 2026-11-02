@@ -1,6 +1,6 @@
 # MeetCTRL
 
-Versión 0.1.3 · by OmT Finance
+Versión 0.2.0 · by OmT Finance
 
 App web (PWA) de videollamadas con pantalla compartida. Se crea una sala, se envía el enlace y listo:
 sin cuentas. Mismo estilo que las demás apps de OmT Finance, en cian.
@@ -21,7 +21,7 @@ sin cuentas. Mismo estilo que las demás apps de OmT Finance, en cian.
 2. Activar Web Analytics.
 3. `GET /api/meet` debe responder `{ "configured": true }`.
 4. Para redes móviles o de empresa que no permiten conexión directa, añadir un servidor TURN con las
-   variables `TURN_URLS` (separadas por comas), `TURN_USER` y `TURN_PASS`. Sin él, algunas llamadas no Con Cloudflare (recomendado, 1000 GB al mes gratis): `CF_TURN_KEY_ID` y `CF_TURN_API_TOKEN`; el servidor pide claves temporales.
+   variables `TURN_URLS` (separadas por comas), `TURN_USER` y `TURN_PASS`. Sin él, algunas llamadas no Con Cloudflare (recomendado, 1000 GB al mes gratis): `CF_TURN_KEY_ID` y `CF_TURN_API_TOKEN`; el servidor pide claves temporales. El TURN solo se da a quien envía la clave de administrador (la misma que la clave de registro de UnderCTRL; se cambia con `ADMIN_CODE`), que se pone en ⋯ → Llamadas sin wifi; sin ella solo STUN (la llamada funciona con wifi).
    conectarán.
 
 ## Límites conocidos

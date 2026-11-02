@@ -735,3 +735,4 @@ main { padding-bottom: calc(24px + env(safe-area-inset-bottom)); gap: 14px; }
 .round.end { width: 54px; }
   .call-bar { gap: 8px; }
 }
+.admin-err { color: var(--warn); min-height: 1.2em; margin: 0; }

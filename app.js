@@ -1,7 +1,7 @@
 'use strict';
 
 // Versión de la app (se ve en la pantalla de inicio). Arreglos y ajustes: 0.1.x; novedades: 0.x.0.
-const APP_VERSION = '0.1.3';
+const APP_VERSION = '0.2.0';
 // Uso de la app en Vercel Analytics: es una sola página, así que cada función se cuenta como una
 // página virtual. Solo se envía el nombre de la función, nunca datos de la app.
 const track = (path) => { try { window.va?.('pageview', { path }); } catch (_) { /* sin analítica */ } };
@@ -10,6 +10,7 @@ const ME_KEY = 'meet:me';
 const LAST_KEY = 'meet:last';
 const DISPLAY_KEY = 'meet:display';
 const INSTALL_HINT_KEY = 'meet:installHint';
+const ADMIN_KEY = 'meet:admin'; // clave de administrador de este dispositivo (llamadas sin wifi)
 const API = 'api/meet';
 const MAX_PEERS = 6;
 const POLL_BUSY_MS = 1200;   // mientras alguien se conecta o esperas a los demás
@@ -28,6 +29,7 @@ const ICONS = {
   invite: '<circle cx="9.5" cy="8.5" r="3.5"/><path d="M3.5 19.5a6 6 0 0 1 11.5-2.4"/><path d="M18 13v7M14.5 16.5h7"/>',
   hangup: '<path d="M3.2 14.5c5-4.7 12.6-4.7 17.6 0 .6.6.6 1.5 0 2l-1.6 1.6c-.5.5-1.3.5-1.8.1l-1.7-1.3c-.4-.3-.6-.7-.6-1.2v-1.5a10 10 0 0 0-6.2 0v1.5c0 .5-.2.9-.6 1.2l-1.7 1.3c-.5.4-1.3.4-1.8-.1l-1.6-1.6c-.5-.5-.5-1.4 0-2z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
   palette: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.9 1.2-1.8-.5-1-.1-2.2 1.1-2.2H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/>',
   chevron: '<path d="M9 5l7 7-7 7"/>',
@@ -305,7 +307,7 @@ async function enterCall() {
   try {
     const room = await deriveRoom(code);
     const pid = hex(crypto.getRandomValues(new Uint8Array(16)));
-    const { iceServers } = await api('ice', { rid: room.rid });
+    const { iceServers } = await api('ice', { rid: room.rid, admin: load(ADMIN_KEY, '') || undefined });
     const { peers } = await api('join', { rid: room.rid, pid });
     call = { room, pid, ice: iceServers, peers: new Map(), listed: new Set(peers), started: 0, timer: 0 };
     pinned = null;
@@ -667,6 +669,7 @@ function newSheet(center = false) {
 
 const MENU = [
   { label: 'Nueva sala', icon: 'plus', run: () => openLobby(newCode()) },
+  { label: 'Llamadas sin wifi', icon: 'lock', run: () => openAdminSheet() },
   { label: 'Opciones de visualización', icon: 'palette', run: () => openDisplaySheet() },
   { label: 'Información', icon: 'info', run: () => openInfoSheet() },
 ];
@@ -699,6 +702,52 @@ document.addEventListener('click', (e) => {
   if (!$('menu').hidden && !e.target.closest('#menu')) closeMenu();
 });
 window.addEventListener('resize', closeMenu);
+
+// ---------- Llamadas sin wifi (clave de administrador) ----------
+// Sin wifi las llamadas necesitan un repetidor (TURN) con cuota limitada: el servidor solo lo da a
+// quien envía la clave de administrador. Se guarda en este dispositivo.
+
+function openAdminSheet() {
+  const back = newSheet();
+  const draw = () => {
+    const on = !!load(ADMIN_KEY, '');
+    back.innerHTML = `
+      <div class="sheet" role="dialog" aria-modal="true" aria-label="Llamadas sin wifi">
+        <h2 class="sheet-title">Llamadas sin wifi</h2>
+        <p class="small muted">Con wifi las llamadas van directas. Con datos móviles suelen necesitar un repetidor, que tiene un uso limitado y solo puede activarlo el administrador. Basta con que lo tenga activado una de las personas a las que hay que llegar.</p>
+        ${on ? `<p class="small"><b>Activadas en este dispositivo.</b></p>
+        <div class="sheet-actions"><button type="button" class="ghost-btn" data-off>Desactivar</button><button type="button" class="done-btn" data-close>Cerrar</button></div>`
+        : `<label class="field"><span>Clave de administrador</span><input id="admin-input" type="password" maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false" /></label>
+        <p class="small admin-err" id="admin-err" role="alert"></p>
+        <div class="sheet-actions"><button type="button" class="ghost-btn" data-close>Cancelar</button><button type="button" class="done-btn" data-ok disabled>Activar</button></div>`}
+      </div>`;
+    back.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closeSheet));
+    back.querySelector('[data-off]')?.addEventListener('click', () => { save(ADMIN_KEY, ''); toast('Llamadas sin wifi desactivadas en este dispositivo'); draw(); });
+    const input = back.querySelector('#admin-input');
+    if (!input) return;
+    const ok = back.querySelector('[data-ok]');
+    const err = back.querySelector('#admin-err');
+    input.addEventListener('input', () => { ok.disabled = !input.value.trim(); err.textContent = ''; });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !ok.disabled) ok.click(); });
+    ok.addEventListener('click', async () => {
+      ok.disabled = true;
+      const code = input.value.trim();
+      try {
+        const rid = hex(crypto.getRandomValues(new Uint8Array(32))); // el servidor pide una sala; no se usa
+        const { ok: valid } = await api('admin-check', { rid, admin: code });
+        if (!valid) { err.textContent = 'La clave no es correcta.'; ok.disabled = false; return; }
+        save(ADMIN_KEY, code);
+        toast('Llamadas sin wifi activadas en este dispositivo');
+        draw();
+      } catch (e) {
+        err.textContent = e.code === 'too-many' ? 'Demasiados intentos. Prueba dentro de 15 minutos.' : 'Sin conexión. Inténtalo de nuevo.';
+        ok.disabled = false;
+      }
+    });
+    setTimeout(() => input.focus(), 50);
+  };
+  draw();
+}
 
 function openInfoSheet() {
   const back = newSheet(true);

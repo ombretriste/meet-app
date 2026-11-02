@@ -1,5 +1,5 @@
 // Cambia la versión al modificar archivos para que los móviles descarguen la nueva versión
-const CACHE = 'meet-v4';
+const CACHE = 'meet-v5';
 const ASSETS = [
   './',
   'index.html',

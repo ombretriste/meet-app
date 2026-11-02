@@ -5,7 +5,8 @@
 // clave que sale del código de la sala (va en el enlace, detrás de «#», y nunca llega aquí).
 //
 //   GET  /api/meet                                 -> { configured } | { configured: false, vars }  (comprobación)
-//   POST /api/meet { action: 'ice', rid }          -> { iceServers }  (servidores STUN/TURN)
+//   POST /api/meet { action: 'ice', rid, admin? }  -> { iceServers, admin }  (STUN; TURN solo con la clave de administrador)
+//   POST /api/meet { action: 'admin-check', rid, admin } -> { ok } | 429
 //   POST /api/meet { action: 'join', rid, pid }    -> { peers } | 409 { error: 'full' }
 //   POST /api/meet { action: 'poll', rid, pid }    -> { peers, inbox: [{ from, sig }] }
 //   POST /api/meet { action: 'send', rid, pid, to, sig } -> { ok }
@@ -96,6 +97,34 @@ async function iceServers() {
   return STUN;
 }
 
+const crypto = globalThis.crypto || require('crypto').webcrypto;
+// Clave de administrador (la misma que la clave de registro de UnderCTRL). Solo quien la tiene recibe
+// el TURN: es lo que deja llamar sin wifi y lo que gasta la cuota de Cloudflare. Se guarda solo su
+// SHA-256; se puede cambiar sin tocar el código con la variable ADMIN_CODE en Vercel.
+const ADMIN_CODE_SHA256 = 'ac1d2e03863dfb13990eb55aff6af1041c1b837f64c9f9fd5926bc7347c5c3db';
+const MAX_ADMIN_FAILS = 10; // claves incorrectas por IP cada 15 minutos
+async function sha256hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function sameHex(a, b) { // comparación en tiempo constante
+  if (typeof a !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+// -> 'ok' | 'no' | 'too-many'
+async function checkAdmin(req, code) {
+  if (typeof code !== 'string' || !code.trim() || code.length > 64) return 'no';
+  const ip = String(req.headers?.['x-forwarded-for'] || req.headers?.['x-real-ip'] || 'desconocida').split(',')[0].trim();
+  const ipKey = `mtg:af:${await sha256hex(ip)}`;
+  if ((Number(await redis('GET', ipKey)) || 0) >= MAX_ADMIN_FAILS) return 'too-many';
+  const expected = process.env.ADMIN_CODE ? await sha256hex(process.env.ADMIN_CODE.trim()) : ADMIN_CODE_SHA256;
+  if (sameHex(await sha256hex(code.trim()), expected)) return 'ok';
+  await pipeline([['INCR', ipKey], ['EXPIRE', ipKey, 15 * 60]]);
+  return 'no';
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!REDIS_URL) {
@@ -119,7 +148,16 @@ module.exports = async (req, res) => {
   if (!RID.test(rid || '')) return res.status(400).json({ error: 'bad-request' });
 
   try {
-    if (action === 'ice') return res.status(200).json({ iceServers: await iceServers() });
+    if (action === 'ice') {
+      // Sin la clave de administrador solo STUN: las llamadas van bien con wifi, pero no por datos móviles
+      const admin = (await checkAdmin(req, body.admin)) === 'ok';
+      return res.status(200).json({ iceServers: admin ? await iceServers() : STUN, admin });
+    }
+    if (action === 'admin-check') {
+      const result = await checkAdmin(req, body.admin);
+      if (result === 'too-many') return res.status(429).json({ error: 'too-many' });
+      return res.status(200).json({ ok: result === 'ok' });
+    }
 
     if (!PID.test(pid || '')) return res.status(400).json({ error: 'bad-request' });
     const now = Date.now();
