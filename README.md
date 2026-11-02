@@ -1,6 +1,6 @@
 # MeetCTRL
 
-Versión 0.1.1 · by OmT Finance
+Versión 0.1.3 · by OmT Finance
 
 App web (PWA) de videollamadas con pantalla compartida. Se crea una sala, se envía el enlace y listo:
 sin cuentas. Mismo estilo que las demás apps de OmT Finance, en cian.

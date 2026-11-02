@@ -68,6 +68,7 @@ const inboxKey = (rid, pid) => `mtg:q:${rid}:${pid}`;
 // CF_TURN_API_TOKEN (1000 GB al mes gratis). También vale cualquier otro TURN con TURN_URLS/USER/PASS.
 const STUN = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
 let turnCache = null; // { at, servers }: las claves duran un día; se renuevan cada hora
+let turnError = ''; // último fallo con Cloudflare (se muestra en GET para diagnosticar)
 async function iceServers() {
   const env = process.env;
   if (env.CF_TURN_KEY_ID && env.CF_TURN_API_TOKEN) {
@@ -83,9 +84,11 @@ async function iceServers() {
         // El puerto 53 lo bloquean los navegadores: solo haría esperar
         const servers = json.iceServers.map((s) => ({ ...s, urls: [].concat(s.urls).filter((u) => !/:53(\?|$)/.test(u)) })).filter((s) => s.urls.length);
         turnCache = { at: Date.now(), servers: [...STUN, ...servers] };
+        turnError = '';
         return turnCache.servers;
       }
-    } catch (_) { /* Cloudflare no responde: se sigue sin TURN */ }
+      turnError = `cloudflare ${res.status}`;
+    } catch (err) { turnError = `cloudflare: ${err.message}`; /* se sigue sin TURN */ }
   }
   if (env.TURN_URLS && env.TURN_USER && env.TURN_PASS) {
     return [...STUN, { urls: env.TURN_URLS.split(',').map((u) => u.trim()), username: env.TURN_USER, credential: env.TURN_PASS }];
@@ -102,7 +105,9 @@ module.exports = async (req, res) => {
   if (req.method === 'GET') {
     try {
       await redis('PING');
-      return res.status(200).json({ configured: true });
+      const ice = await iceServers();
+      const turn = ice.some((s) => [].concat(s.urls).some((u) => /^turns?:/.test(u))) ? 'ok' : turnError || (process.env.CF_TURN_KEY_ID ? 'sin-token' : 'sin-claves');
+      return res.status(200).json({ configured: true, turn });
     } catch (err) {
       return res.status(200).json({ configured: false, error: `redis: ${err.message}` });
     }
