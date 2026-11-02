@@ -1,7 +1,7 @@
 'use strict';
 
 // Versión de la app (se ve en la pantalla de inicio). Arreglos y ajustes: 0.1.x; novedades: 0.x.0.
-const APP_VERSION = '0.1.1';
+const APP_VERSION = '0.1.2';
 // Uso de la app en Vercel Analytics: es una sola página, así que cada función se cuenta como una
 // página virtual. Solo se envía el nombre de la función, nunca datos de la app.
 const track = (path) => { try { window.va?.('pageview', { path }); } catch (_) { /* sin analítica */ } };
@@ -14,7 +14,7 @@ const API = 'api/meet';
 const MAX_PEERS = 6;
 const POLL_BUSY_MS = 1200;   // mientras alguien se conecta o esperas a los demás
 const POLL_IDLE_MS = 3000;   // con todos conectados, las señales casi no hacen falta
-const ICE_WAIT_MS = 2500;    // las señales llevan todas las rutas: se espera a reunirlas
+const ICE_WAIT_MS = 4000;    // las señales llevan todas las rutas: se espera a reunirlas (las del TURN tardan algo más)
 const MAX_RETRIES = 2;
 const SHARE_BITRATE = 2500000;
 

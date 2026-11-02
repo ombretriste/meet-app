@@ -62,6 +62,37 @@ async function pipeline(commands) {
 const roomKey = (rid) => `mtg:r:${rid}`;
 const inboxKey = (rid, pid) => `mtg:q:${rid}:${pid}`;
 
+// Servidores para conectar las llamadas. STUN (gratis) siempre basta en wifi, pero con datos móviles
+// las operadoras suelen impedir la conexión directa y hace falta un TURN que reenvíe el audio y el
+// vídeo (cifrados: el TURN no puede verlos). Cloudflare: claves temporales con CF_TURN_KEY_ID y
+// CF_TURN_API_TOKEN (1000 GB al mes gratis). También vale cualquier otro TURN con TURN_URLS/USER/PASS.
+const STUN = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+let turnCache = null; // { at, servers }: las claves duran un día; se renuevan cada hora
+async function iceServers() {
+  const env = process.env;
+  if (env.CF_TURN_KEY_ID && env.CF_TURN_API_TOKEN) {
+    if (turnCache && Date.now() - turnCache.at < 3600e3) return turnCache.servers;
+    try {
+      const res = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${env.CF_TURN_KEY_ID}/credentials/generate-ice-servers`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.CF_TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ttl: 86400 }),
+      });
+      const json = await res.json();
+      if (res.ok && Array.isArray(json.iceServers)) {
+        // El puerto 53 lo bloquean los navegadores: solo haría esperar
+        const servers = json.iceServers.map((s) => ({ ...s, urls: [].concat(s.urls).filter((u) => !/:53(\?|$)/.test(u)) })).filter((s) => s.urls.length);
+        turnCache = { at: Date.now(), servers: [...STUN, ...servers] };
+        return turnCache.servers;
+      }
+    } catch (_) { /* Cloudflare no responde: se sigue sin TURN */ }
+  }
+  if (env.TURN_URLS && env.TURN_USER && env.TURN_PASS) {
+    return [...STUN, { urls: env.TURN_URLS.split(',').map((u) => u.trim()), username: env.TURN_USER, credential: env.TURN_PASS }];
+  }
+  return STUN;
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!REDIS_URL) {
@@ -83,12 +114,7 @@ module.exports = async (req, res) => {
   if (!RID.test(rid || '')) return res.status(400).json({ error: 'bad-request' });
 
   try {
-    if (action === 'ice') {
-      const iceServers = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
-      const { TURN_URLS, TURN_USER, TURN_PASS } = process.env;
-      if (TURN_URLS && TURN_USER && TURN_PASS) iceServers.push({ urls: TURN_URLS.split(',').map((u) => u.trim()), username: TURN_USER, credential: TURN_PASS });
-      return res.status(200).json({ iceServers });
-    }
+    if (action === 'ice') return res.status(200).json({ iceServers: await iceServers() });
 
     if (!PID.test(pid || '')) return res.status(400).json({ error: 'bad-request' });
     const now = Date.now();

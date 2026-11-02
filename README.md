@@ -21,7 +21,7 @@ sin cuentas. Mismo estilo que las demás apps de OmT Finance, en cian.
 2. Activar Web Analytics.
 3. `GET /api/meet` debe responder `{ "configured": true }`.
 4. Para redes móviles o de empresa que no permiten conexión directa, añadir un servidor TURN con las
-   variables `TURN_URLS` (separadas por comas), `TURN_USER` y `TURN_PASS`. Sin él, algunas llamadas no
+   variables `TURN_URLS` (separadas por comas), `TURN_USER` y `TURN_PASS`. Sin él, algunas llamadas no Con Cloudflare (recomendado, 1000 GB al mes gratis): `CF_TURN_KEY_ID` y `CF_TURN_API_TOKEN`; el servidor pide claves temporales.
    conectarán.
 
 ## Límites conocidos
